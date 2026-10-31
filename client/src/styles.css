@@ -240,3 +240,45 @@ button.secondary {
 .message {
   margin-top: 12px;
 }
+
+/* ---------- Simulated UPI ---------- */
+
+.center-text {
+  text-align: center;
+}
+
+.timeline {
+  list-style: none;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #c9ced8;
+  border-radius: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-size: 0.85rem;
+}
+
+.timeline li {
+  display: grid;
+  grid-template-columns: 20px 1fr auto;
+  gap: 8px;
+  align-items: start;
+}
+
+.timeline .icon {
+  font-weight: 700;
+}
+
+.timeline .ok .icon {
+  color: #18864b;
+}
+
+.timeline .failed {
+  color: #c0262d;
+}
+
+.timeline .time {
+  color: #4a5468;
+  font-variant-numeric: tabular-nums;
+}

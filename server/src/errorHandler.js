@@ -11,7 +11,7 @@ function errorHandler(err, req, res, next) {
   // Errors we threw on purpose (HttpError) or bad JSON from express.json().
   if (err.status && err.status < 500) {
     const message = err.type === 'entity.parse.failed' ? 'Body must be valid JSON' : err.message;
-    return res.status(err.status).json({ error: message });
+    return res.status(err.status).json({ error: message, ...err.details });
   }
 
   // Anything else is a bug or a DB problem: log it, but don't leak details.

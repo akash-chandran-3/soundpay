@@ -1,18 +1,21 @@
 // Pure functions for the compact payment payload sent over sound / QR.
 //
-// Format:  SP1|<sessionId>|<routeId>|<amountPaise>|<expiryUnix>|<sig>
-// Example: SP1|3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b|4B|2500|1761040000|9f86d081884c7d65
+// Format:  SP2|<sessionId>|<routeId>|<amountPaise>|<expiryUnix>|<sig>
+// Example: SP2|k7qm2xpa9r4t|4B|2500|1761040000|9f86d081884c7d65   (about 52 bytes)
+//
+// Version history: SP1 used 36-character UUIDs as session ids. SP2 uses
+// 12-character ids, which makes the sound about 2 seconds shorter.
 //
 // "Pure" means: no database, no clock, no process.env inside. Everything the
 // functions need is passed in, so they are easy to test.
 const crypto = require('crypto');
 
-const VERSION = 'SP1';
+const VERSION = 'SP2';
 const SEPARATOR = '|';
 const SIG_LENGTH = 16; // hex characters = 8 bytes of the HMAC
 const MAX_PAYLOAD_BYTES = 140; // ggwave can only send small messages
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const SESSION_ID_PATTERN = /^[0-9a-z]{12}$/; // see src/ids.js
 const ROUTE_ID_PATTERN = /^[A-Za-z0-9-]{1,10}$/; // e.g. "4B", "21G", "M-70"
 const DIGITS_PATTERN = /^[0-9]{1,10}$/;
 const SIG_PATTERN = /^[0-9a-f]{16}$/;
@@ -47,7 +50,7 @@ function parsePayload(text) {
 
   const [version, sessionId, routeId, amount, expiry, sig] = parts;
   if (version !== VERSION) return null;
-  if (!UUID_PATTERN.test(sessionId)) return null;
+  if (!SESSION_ID_PATTERN.test(sessionId)) return null;
   if (!ROUTE_ID_PATTERN.test(routeId)) return null;
   if (!DIGITS_PATTERN.test(amount) || !DIGITS_PATTERN.test(expiry)) return null;
   if (!SIG_PATTERN.test(sig)) return null;
@@ -76,4 +79,5 @@ module.exports = {
   verifySignature,
   MAX_PAYLOAD_BYTES,
   ROUTE_ID_PATTERN,
+  SESSION_ID_PATTERN,
 };

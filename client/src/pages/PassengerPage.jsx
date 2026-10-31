@@ -1,11 +1,13 @@
-// Passenger: listen for the ticket sound (or scan the QR), confirm, enter the
-// mock PIN, and let the SERVER decide whether the payment succeeds.
+// Passenger: listen for the ticket sound (or scan the QR), confirm, pick a
+// demo UPI account, enter the mock PIN, and let the SERVER decide whether the
+// (simulated) UPI payment succeeds.
 import { useEffect, useRef, useState } from 'react';
-import { authorizePayment } from '../api.js';
+import { authorizePayment, getDemoAccounts } from '../api.js';
 import { startListening, stopListening } from '../sound/ggwave.js';
 import { readPayload } from '../payload.js';
 import { formatPaise } from '../money.js';
 import QrScanner from '../components/QrScanner.jsx';
+import UpiTimeline from '../components/UpiTimeline.jsx';
 
 const LISTEN_SECONDS = 20;
 
@@ -22,10 +24,12 @@ function messageFor(err) {
       return 'This ticket code is invalid or has been tampered with.';
     case 401:
       return 'Wrong PIN – please try again.';
+    case 402:
+      return `Payment declined by the bank (simulated): ${err.message}.`;
     case 404:
       return 'Ticket not found. Ask the conductor to generate a new one.';
     case 409:
-      return 'This ticket has already been paid.';
+      return `${err.message}.`; // already paid / in progress / failed earlier
     case 410:
       return 'This ticket has expired. Ask the conductor to generate a new one.';
     default:
@@ -45,14 +49,16 @@ function micErrorMessage(err) {
 }
 
 export default function PassengerPage() {
-  // mode: 'idle' | 'listening' | 'scanning' | 'confirm' | 'paying' | 'paid'
+  // mode: 'idle' | 'listening' | 'scanning' | 'confirm' | 'paying' | 'paid' | 'declined'
   const [mode, setMode] = useState('idle');
   const [ticket, setTicket] = useState(null); // what readPayload() returned
   const [message, setMessage] = useState(''); // errors and hints
   const [level, setLevel] = useState(0);
   const [threshold, setThreshold] = useState(DEFAULT_PROXIMITY_THRESHOLD);
-  const [method, setMethod] = useState('UPI');
+  const [accounts, setAccounts] = useState([]); // simulated UPI accounts from the server
+  const [payerVpa, setPayerVpa] = useState('kesav@mockbank');
   const [pin, setPin] = useState('');
+  const [receipt, setReceipt] = useState(null); // server's reply after a payment attempt
 
   const thresholdRef = useRef(threshold); // read inside the audio callback
   thresholdRef.current = threshold;
@@ -114,23 +120,39 @@ export default function PassengerPage() {
 
   useEffect(() => stopListening, []); // on unmount (e.g. switching to /terminal)
 
+  // Load the demo payer accounts once.
+  useEffect(() => {
+    getDemoAccounts()
+      .then((data) => setAccounts(data.accounts))
+      .catch(() => {}); // keep the default account if this fails
+  }, []);
+
   async function handleApprove(event) {
     event.preventDefault();
     setMessage('');
     setMode('paying');
     try {
-      await authorizePayment({ payload: ticket.payload, pin });
+      const result = await authorizePayment({ payload: ticket.payload, pin, payerVpa });
+      setReceipt(result); // includes the RRN and the UPI steps
       setMode('paid');
     } catch (err) {
+      setPin('');
+      if (err.status === 402) {
+        // Declined by the (simulated) bank: show how far the transfer got.
+        setReceipt(err.data);
+        setMessage(messageFor(err));
+        setMode('declined');
+        return;
+      }
       setMessage(messageFor(err));
       // Wrong PIN: let them retry. Anything else: this ticket is finished.
       setMode(err.status === 401 ? 'confirm' : 'idle');
-      setPin('');
     }
   }
 
   function startOver() {
     setTicket(null);
+    setReceipt(null);
     setMessage('');
     setMode('idle');
   }
@@ -195,23 +217,28 @@ export default function PassengerPage() {
           </p>
 
           <fieldset className="methods">
-            <legend>Payment method (simulated – no real money)</legend>
-            {['UPI', 'Wallet'].map((m) => (
-              <label key={m} className="radio">
+            <legend>Pay with UPI from (simulated demo accounts – no real money)</legend>
+            {(accounts.length ? accounts : [{ vpa: payerVpa, name: 'Demo account' }]).map((a) => (
+              <label key={a.vpa} className="radio">
                 <input
                   type="radio"
-                  name="method"
-                  value={m}
-                  checked={method === m}
-                  onChange={() => setMethod(m)}
+                  name="payerVpa"
+                  value={a.vpa}
+                  checked={payerVpa === a.vpa}
+                  onChange={() => setPayerVpa(a.vpa)}
                 />
-                {m} (simulated)
+                <span>
+                  {a.vpa}
+                  {a.balancePaise !== undefined && (
+                    <span className="hint"> · balance {formatPaise(a.balancePaise)}</span>
+                  )}
+                </span>
               </label>
             ))}
           </fieldset>
 
           <label>
-            PIN (mock)
+            UPI PIN (mock)
             <input
               type="password"
               inputMode="numeric"
@@ -224,7 +251,7 @@ export default function PassengerPage() {
           </label>
 
           <button type="submit" disabled={mode === 'paying'}>
-            {mode === 'paying' ? 'Approving…' : 'Approve'}
+            {mode === 'paying' ? 'Processing UPI payment…' : 'Approve'}
           </button>
           <button type="button" className="secondary" onClick={startOver} disabled={mode === 'paying'}>
             Cancel
@@ -232,12 +259,26 @@ export default function PassengerPage() {
         </form>
       )}
 
-      {mode === 'paid' && ticket && (
-        <div className="stack center">
-          <p className="status paid">Paid ✓</p>
-          <p className="hint">
-            {formatPaise(ticket.amountPaise)} · Route {ticket.routeId} · {method} (simulated)
+      {mode === 'paid' && receipt && (
+        <div className="stack">
+          <p className="status paid center-text">Paid ✓</p>
+          <p className="hint center-text">
+            {formatPaise(receipt.amountPaise)} · Route {receipt.routeId}
+            <br />
+            {receipt.payerVpa} → {receipt.payeeVpa}
+            <br />
+            RRN <strong>{receipt.rrn}</strong> (simulated)
           </p>
+          <UpiTimeline steps={receipt.steps} />
+          <button onClick={startOver}>Done</button>
+        </div>
+      )}
+
+      {mode === 'declined' && receipt && (
+        <div className="stack">
+          <p className="status expired center-text">Payment declined</p>
+          {receipt.steps && <UpiTimeline steps={receipt.steps} />}
+          <p className="hint">Ask the conductor for a new ticket to try again.</p>
           <button onClick={startOver}>Done</button>
         </div>
       )}

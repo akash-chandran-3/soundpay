@@ -1,5 +1,5 @@
 // Reads a SoundPay payload ONLY so the passenger can see what they are paying.
-//   SP1|<sessionId>|<routeId>|<amountPaise>|<expiryUnix>|<sig>
+//   SP2|<sessionId>|<routeId>|<amountPaise>|<expiryUnix>|<sig>
 //
 // This does NOT check the signature. The browser doesn't have the secret, and
 // it shouldn't: the server verifies the signature when the passenger approves.
@@ -9,7 +9,7 @@ export function readPayload(text) {
   if (typeof text !== 'string') return null;
 
   const parts = text.trim().split('|');
-  if (parts.length !== 6 || parts[0] !== 'SP1') return null;
+  if (parts.length !== 6 || parts[0] !== 'SP2') return null;
 
   const [, sessionId, routeId, amount] = parts;
   if (!/^[0-9]{1,10}$/.test(amount)) return null;

@@ -1,9 +1,10 @@
 // Input validation for request bodies. Each function returns either
 // { value } with cleaned-up data, or { error } with a message for the user.
-const { ROUTE_ID_PATTERN } = require('./payload/payload');
+const { ROUTE_ID_PATTERN, SESSION_ID_PATTERN } = require('./payload/payload');
 
 const MERCHANT_ID_PATTERN = /^[A-Za-z0-9_-]{1,50}$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+// A UPI address (VPA) looks like name@bank, e.g. kesav@mockbank.
+const VPA_PATTERN = /^[a-z0-9._-]{2,50}@[a-z]{2,30}$/;
 const AMOUNT_PATTERN = /^\d{1,4}(\.\d{1,2})?$/; // "25", "25.5", "25.50"
 const MAX_AMOUNT_PAISE = 100000; // Rs 1,000
 
@@ -42,7 +43,7 @@ function validateCreateSession(body) {
 }
 
 function validateAuthorize(body) {
-  const { payload, pin } = body || {};
+  const { payload, pin, payerVpa } = body || {};
 
   if (typeof payload !== 'string' || payload.length === 0 || payload.length > 200) {
     return { error: 'payload is required' };
@@ -50,11 +51,14 @@ function validateAuthorize(body) {
   if (typeof pin !== 'string' || pin.length === 0) {
     return { error: 'pin is required' };
   }
-  return { value: { payload, pin } };
+  if (typeof payerVpa !== 'string' || !VPA_PATTERN.test(payerVpa)) {
+    return { error: 'payerVpa must look like name@bank' };
+  }
+  return { value: { payload, pin, payerVpa } };
 }
 
-function isUuid(text) {
-  return typeof text === 'string' && UUID_PATTERN.test(text);
+function isSessionId(text) {
+  return typeof text === 'string' && SESSION_ID_PATTERN.test(text);
 }
 
-module.exports = { validateCreateSession, validateAuthorize, isUuid, rupeesToPaise };
+module.exports = { validateCreateSession, validateAuthorize, isSessionId, rupeesToPaise };

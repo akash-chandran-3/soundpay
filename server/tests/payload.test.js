@@ -8,7 +8,7 @@ const {
 const SECRET = 'test-secret';
 
 const fields = {
-  sessionId: '3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b',
+  sessionId: 'k7qm2xpa9r4t',
   routeId: '4B',
   amountPaise: 2500,
   expiryUnix: 1761040000,
@@ -24,7 +24,7 @@ describe('payload', () => {
   });
 
   test('starts with the version prefix', () => {
-    expect(buildPayload(fields, SECRET).startsWith('SP1|')).toBe(true);
+    expect(buildPayload(fields, SECRET).startsWith('SP2|')).toBe(true);
   });
 
   test('tampered amount fails verification', () => {
@@ -51,15 +51,18 @@ describe('payload', () => {
     ['not a string', 12345],
     ['null', null],
     ['random text', 'hello world'],
-    ['wrong version', buildPayload(fields, SECRET).replace('SP1', 'SP9')],
-    ['too few parts', 'SP1|abc|4B|2500'],
+    ['unknown version', buildPayload(fields, SECRET).replace('SP2', 'SP9')],
+    ['old SP1 version', buildPayload(fields, SECRET).replace('SP2', 'SP1')],
+    ['too few parts', 'SP2|abc|4B|2500'],
     ['too many parts', buildPayload(fields, SECRET) + '|extra'],
-    ['bad uuid', buildPayload({ ...fields, sessionId: 'not-a-uuid' }, SECRET)],
+    ['session id too short', buildPayload({ ...fields, sessionId: 'abc123' }, SECRET)],
+    ['session id with uppercase', buildPayload({ ...fields, sessionId: 'K7QM2XPA9R4T' }, SECRET)],
+    ['old UUID session id', buildPayload({ ...fields, sessionId: '3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b' }, SECRET)],
     ['bad route', buildPayload({ ...fields, routeId: 'route with spaces' }, SECRET)],
-    ['decimal amount', 'SP1|3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b|4B|25.00|1761040000|9f86d081884c7d65'],
-    ['negative amount', 'SP1|3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b|4B|-2500|1761040000|9f86d081884c7d65'],
-    ['zero amount', 'SP1|3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b|4B|0|1761040000|9f86d081884c7d65'],
-    ['short signature', 'SP1|3f2b1c9e-8a7d-4e6f-9b0a-1c2d3e4f5a6b|4B|2500|1761040000|abc'],
+    ['decimal amount', 'SP2|k7qm2xpa9r4t|4B|25.00|1761040000|9f86d081884c7d65'],
+    ['negative amount', 'SP2|k7qm2xpa9r4t|4B|-2500|1761040000|9f86d081884c7d65'],
+    ['zero amount', 'SP2|k7qm2xpa9r4t|4B|0|1761040000|9f86d081884c7d65'],
+    ['short signature', 'SP2|k7qm2xpa9r4t|4B|2500|1761040000|abc'],
   ])('rejects malformed input: %s', (_label, input) => {
     expect(parsePayload(input)).toBeNull();
   });
@@ -77,5 +80,6 @@ describe('payload', () => {
     const bytes = Buffer.byteLength(big, 'utf8');
 
     expect(bytes).toBeLessThan(MAX_PAYLOAD_BYTES);
+    expect(bytes).toBeLessThanOrEqual(64); // SP2 goal: short payload = short sound
   });
 });

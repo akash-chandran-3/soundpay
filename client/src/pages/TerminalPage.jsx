@@ -1,5 +1,5 @@
 // Conductor's terminal: create a ticket, play it as sound, show a QR fallback,
-// and poll the server until it says AUTHORIZED or EXPIRED.
+// and poll the server until it says AUTHORIZED, FAILED or EXPIRED.
 import { useEffect, useRef, useState } from 'react';
 import { createSession, getSessionStatus } from '../api.js';
 import { encodeToAudio, getAudioContext, playAudio } from '../sound/ggwave.js';
@@ -15,7 +15,7 @@ export default function TerminalPage() {
   const [amount, setAmount] = useState('25');
   const [volume, setVolume] = useState(0.5);
 
-  // phase: 'idle' -> 'creating' -> 'waiting' -> 'paid' | 'expired'
+  // phase: 'idle' -> 'creating' -> 'waiting' -> ('processing') -> 'paid' | 'failed' | 'expired'
   const [phase, setPhase] = useState('idle');
   const [session, setSession] = useState(null);
   const [deadline, setDeadline] = useState(0);
@@ -23,6 +23,7 @@ export default function TerminalPage() {
   const [error, setError] = useState('');
   const [soundError, setSoundError] = useState('');
   const [playing, setPlaying] = useState(false);
+  const [rrn, setRrn] = useState(null); // UPI reference number once paid (simulated)
 
   const audioRef = useRef(null); // the encoded sound, kept for "Replay"
 
@@ -74,9 +75,9 @@ export default function TerminalPage() {
     return () => clearInterval(id);
   }, [phase, deadline]);
 
-  // Poll the server once a second while waiting.
+  // Poll the server once a second while waiting for, or processing, a payment.
   useEffect(() => {
-    if (phase !== 'waiting') return;
+    if (phase !== 'waiting' && phase !== 'processing') return;
     let cancelled = false;
 
     const id = setInterval(async () => {
@@ -85,16 +86,22 @@ export default function TerminalPage() {
         return;
       }
       try {
-        const { status } = await getSessionStatus(session.sessionId);
+        const status = await getSessionStatus(session.sessionId);
         if (cancelled) return; // a late reply after we already stopped
-        if (status === 'AUTHORIZED') setPhase('paid');
-        if (status === 'EXPIRED') setPhase('expired');
+        if (status.status === 'PROCESSING') setPhase('processing');
+        if (status.status === 'AUTHORIZED') {
+          setRrn(status.rrn);
+          setPhase('paid');
+        }
+        if (status.status === 'FAILED') setPhase('failed');
+        if (status.status === 'EXPIRED') setPhase('expired');
       } catch {
         // Network hiccup: just try again on the next tick.
       }
     }, POLL_MS);
 
-    // Runs when phase changes (paid/expired) or the page closes: stops polling.
+    // Runs when phase changes or the page closes: stops this poller
+    // (a new one starts if we are still waiting/processing).
     return () => {
       cancelled = true;
       clearInterval(id);
@@ -104,6 +111,7 @@ export default function TerminalPage() {
   function reset() {
     setPhase('idle');
     setSession(null);
+    setRrn(null);
     audioRef.current = null;
   }
 
@@ -162,10 +170,25 @@ export default function TerminalPage() {
             </>
           )}
 
+          {phase === 'processing' && (
+            <p className="countdown">
+              <span className="dot" /> Payment in progress (simulated UPI)…
+            </p>
+          )}
+
           {phase === 'paid' && (
             <>
               <p className="status paid">Paid ✓</p>
+              {rrn && <p className="hint">UPI RRN {rrn} (simulated)</p>}
               <button onClick={reset}>New ticket</button>
+            </>
+          )}
+
+          {phase === 'failed' && (
+            <>
+              <p className="status expired">Payment failed</p>
+              <p className="hint">The passenger's (simulated) bank declined it.</p>
+              <button onClick={reset}>Generate again</button>
             </>
           )}
 

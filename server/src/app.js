@@ -4,6 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const express = require('express');
 const sessionRoutes = require('./routes/sessionRoutes');
+const upiRoutes = require('./routes/upiRoutes');
 const { notFound, errorHandler } = require('./errorHandler');
 
 const app = express();
@@ -12,6 +13,7 @@ app.use(express.json({ limit: '10kb' })); // payloads are tiny; reject huge bodi
 
 app.get('/api/health', (req, res) => res.json({ ok: true }));
 app.use('/api/session', sessionRoutes);
+app.use('/api/upi', upiRoutes);
 
 // When deployed, Express also serves the built React app (client/dist), so the
 // whole thing is one URL: same origin, no CORS. In local development Vite serves

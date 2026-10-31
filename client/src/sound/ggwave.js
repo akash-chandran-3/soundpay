@@ -81,6 +81,13 @@ export function playAudio(buffer, gain = 0.5) {
 // ---------------------------------------------------------------------------
 
 const CHUNK_SIZE = 1024; // samples per callback (~21 ms at 48 kHz)
+// ggwave's decoder (in this build) only works reliably when it is told the input
+// is 48 kHz – we measured it failing for every message at 44.1 kHz. So we always
+// decode at 48 kHz and convert the mic audio when the device runs at another rate.
+const DECODE_RATE = 48000;
+// ggwave processes audio in frames of exactly this many samples, so we always
+// hand it whole frames (after resampling, chunks are no longer 1024 long).
+const FRAME_SIZE = 1024;
 const LEVEL_WINDOW_SECONDS = 5; // about as long as one message takes to play
 
 let listening = null; // everything we need to undo in stopListening()
@@ -95,6 +102,31 @@ function chunkLevel(samples) {
   const rms = Math.sqrt(sum / samples.length);
   const db = 20 * Math.log10(rms || 1e-9);
   return Math.min(1, Math.max(0, (db + 60) / 60));
+}
+
+// Returns a function that converts chunks of audio from one sample rate to
+// another using linear interpolation (drawing straight lines between samples).
+// It remembers its position between chunks so the joins stay smooth.
+function createResampler(fromRate, toRate) {
+  if (fromRate === toRate) return (chunk) => chunk;
+
+  const step = fromRate / toRate; // input samples per output sample
+  let pos = 0; // where the next output sample falls, in input samples (-1 = previous chunk's last)
+  let previous = 0; // last sample of the previous chunk
+
+  return (chunk) => {
+    const out = [];
+    while (pos < chunk.length - 1) {
+      const i = Math.floor(pos);
+      const t = pos - i;
+      const a = i < 0 ? previous : chunk[i];
+      out.push(a + (chunk[i + 1] - a) * t);
+      pos += step;
+    }
+    pos -= chunk.length;
+    previous = chunk[chunk.length - 1];
+    return Float32Array.from(out);
+  };
 }
 
 // Turns on the mic and decodes ggwave messages.
@@ -130,7 +162,9 @@ export async function startListening(onMessage, onLevel = () => {}) {
     return;
   }
 
-  const rxInstance = createInstance(gg, ctx.sampleRate); // fresh decoder state each time
+  const rxInstance = createInstance(gg, DECODE_RATE); // fresh decoder state each time
+  const toDecodeRate = createResampler(ctx.sampleRate, DECODE_RATE);
+  let pending = new Float32Array(0); // resampled audio not yet given to ggwave
 
   const source = ctx.createMediaStreamSource(stream);
   // ScriptProcessorNode is deprecated in favour of AudioWorklet, but it is still
@@ -152,15 +186,25 @@ export async function startListening(onMessage, onLevel = () => {}) {
     if (recentLevels.length > windowSize) recentLevels.shift();
     onLevel(level);
 
-    // ggwave wants raw bytes; copy the floats and hand over their bytes.
-    const bytes = new Int8Array(new Float32Array(samples).buffer);
-    const result = gg.decode(rxInstance, bytes);
+    // Convert to 48 kHz (this also copies the samples) and add to what's waiting.
+    const resampled = toDecodeRate(new Float32Array(samples));
+    const joined = new Float32Array(pending.length + resampled.length);
+    joined.set(pending);
+    joined.set(resampled, pending.length);
 
-    if (result && result.length > 0) {
-      const text = new TextDecoder('utf-8').decode(result);
-      const averageLevel = recentLevels.reduce((a, b) => a + b, 0) / recentLevels.length;
-      onMessage(text, { averageLevel });
+    // Hand ggwave whole frames, as raw bytes of the floats; keep the rest for next time.
+    let offset = 0;
+    for (; offset + FRAME_SIZE <= joined.length; offset += FRAME_SIZE) {
+      const frame = joined.slice(offset, offset + FRAME_SIZE);
+      const result = gg.decode(rxInstance, new Int8Array(frame.buffer));
+
+      if (result && result.length > 0) {
+        const text = new TextDecoder('utf-8').decode(result);
+        const averageLevel = recentLevels.reduce((a, b) => a + b, 0) / recentLevels.length;
+        onMessage(text, { averageLevel });
+      }
     }
+    pending = joined.slice(offset);
   };
 
   source.connect(processor);
