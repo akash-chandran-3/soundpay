@@ -1,0 +1,242 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: system-ui, sans-serif;
+  background: #f4f5f7;
+  color: #1d2330;
+}
+
+.app {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.header nav a {
+  margin-left: 12px;
+  color: #4a5468;
+  text-decoration: none;
+}
+
+.header nav a.active {
+  color: #1f5fd1;
+  font-weight: 600;
+}
+
+.banner {
+  background: #fff4d6;
+  border: 1px solid #f0d78c;
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 0.85rem;
+}
+
+.card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 20px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+h1 {
+  margin-top: 0;
+  font-size: 1.3rem;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+input {
+  padding: 8px;
+  font-size: 1rem;
+  border: 1px solid #c9ced8;
+  border-radius: 6px;
+}
+
+button {
+  padding: 10px 14px;
+  font-size: 1rem;
+  border: none;
+  border-radius: 6px;
+  background: #1f5fd1;
+  color: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  background: #9db3dc;
+  cursor: default;
+}
+
+.ticket {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  text-align: center;
+}
+
+.amount {
+  font-size: 1.4rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.countdown {
+  margin: 0;
+  color: #4a5468;
+}
+
+.qr {
+  width: 220px;
+  height: 220px;
+}
+
+.status {
+  font-size: 1.6rem;
+  font-weight: 700;
+  margin: 8px 0;
+}
+
+.paid {
+  color: #18864b;
+}
+
+.expired {
+  color: #b54708;
+}
+
+.error {
+  color: #c0262d;
+  margin: 0;
+}
+
+.hint {
+  color: #4a5468;
+  font-size: 0.9rem;
+  margin: 0;
+}
+
+/* ---------- Passenger page ---------- */
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.center {
+  align-items: center;
+  text-align: center;
+}
+
+button.secondary {
+  background: #e8ecf3;
+  color: #1d2330;
+}
+
+.listening {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+/* Pulsing red dot = "the mic is on" */
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #d92d20;
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.4;
+    transform: scale(0.7);
+  }
+}
+
+/* Input level bar, with a marker at the proximity threshold */
+.meter {
+  position: relative;
+  width: 100%;
+  height: 14px;
+  background: #e8ecf3;
+  border-radius: 7px;
+  overflow: hidden;
+}
+
+.meter-fill {
+  height: 100%;
+  background: #18864b;
+  transition: width 60ms linear;
+}
+
+.meter-threshold {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: #1d2330;
+}
+
+.qr-reader {
+  width: 100%;
+  max-width: 320px;
+}
+
+.methods {
+  border: 1px solid #c9ced8;
+  border-radius: 6px;
+  padding: 8px 12px;
+}
+
+.methods legend {
+  font-size: 0.85rem;
+  color: #4a5468;
+}
+
+.radio {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
+.settings {
+  font-size: 0.85rem;
+  color: #4a5468;
+}
+
+.settings label {
+  margin-top: 8px;
+}
+
+.message {
+  margin-top: 12px;
+}

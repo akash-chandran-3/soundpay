@@ -1,0 +1,36 @@
+# Render Blueprint: one free web service that runs Express and serves the
+# built React client. The MySQL database lives on Aiven (Render has no free MySQL).
+# Secrets marked `sync: false` are typed into the Render dashboard, never committed.
+services:
+  - type: web
+    name: soundpay
+    runtime: node
+    plan: free
+    # Build the client, install the server, then create the tables if missing
+    # (db:init uses CREATE ... IF NOT EXISTS, so running it on every deploy is safe).
+    buildCommand: >-
+      cd client && npm ci --include=dev && npm run build &&
+      cd ../server && npm ci && npm run db:init
+    startCommand: cd server && node server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: PAYLOAD_SECRET
+        generateValue: true # Render creates a random secret
+      - key: MOCK_PIN
+        value: "1234" # simulated PIN, not real authentication
+      - key: DB_NAME
+        value: soundpay
+      - key: DB_SSL
+        value: "true"
+      - key: DB_HOST
+        sync: false
+      - key: DB_PORT
+        sync: false
+      - key: DB_USER
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_SSL_CA
+        sync: false
