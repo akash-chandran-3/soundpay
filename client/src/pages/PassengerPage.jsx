@@ -15,7 +15,7 @@ const LISTEN_SECONDS = 20;
 // only accepted if the average mic level while it played was at least this.
 // This is a UX nudge ("hold your phone near the terminal"), NOT security:
 // anyone with a louder speaker or a recording can beat it.
-const DEFAULT_PROXIMITY_THRESHOLD = 0.3;
+const DEFAULT_PROXIMITY_THRESHOLD = 0.15; // lowered after testing on a real phone
 
 // Friendly text for each error the server can send back.
 function messageFor(err) {
@@ -87,7 +87,11 @@ export default function PassengerPage() {
       await startListening(
         (text, { averageLevel }) => {
           if (averageLevel < thresholdRef.current) {
-            setMessage('Heard a ticket, but it was faint – move closer to the terminal.');
+            setMessage(
+              `Heard a ticket, but it was faint (${Math.round(averageLevel * 100)}%, needs ` +
+                `${Math.round(thresholdRef.current * 100)}%) – move closer, or lower the ` +
+                'threshold under Demo settings.'
+            );
             return; // keep listening
           }
           stopListening(); // mic off as soon as we have a good message

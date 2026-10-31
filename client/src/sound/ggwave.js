@@ -88,7 +88,10 @@ const DECODE_RATE = 48000;
 // ggwave processes audio in frames of exactly this many samples, so we always
 // hand it whole frames (after resampling, chunks are no longer 1024 long).
 const FRAME_SIZE = 1024;
-const LEVEL_WINDOW_SECONDS = 5; // about as long as one message takes to play
+// The level check averages the last few seconds before a message is decoded.
+// Keep this SHORTER than one message (~3.9 s), so the average only covers the
+// tones and not the quiet room before them.
+const LEVEL_WINDOW_SECONDS = 3;
 
 let listening = null; // everything we need to undo in stopListening()
 let attempt = 0; // bumped by every start/stop, so a slow start can tell it was cancelled
@@ -132,7 +135,7 @@ function createResampler(fromRate, toRate) {
 // Turns on the mic and decodes ggwave messages.
 //   onMessage(text, { averageLevel })  - a message was decoded
 //   onLevel(level)                     - called ~every 20 ms with the input level (0..1)
-// averageLevel is the mean input level over the last ~5 s, i.e. while the
+// averageLevel is the mean input level over the last ~3 s, i.e. while the
 // message was playing. The page uses it for the "are you close enough?" check.
 //
 // MUST be called from a tap/click handler (browsers require a user gesture).
